@@ -18,3 +18,27 @@ On every socket connection
 
 
 */
+
+
+var EventEmitter = require('events').EventEmitter;
+var emitter = new EventEmitter();
+
+var c2dPublisher = require('./c2dPublisher.js')(emitter);
+
+emitter.on("message-from-device", function(message){
+  console.log("Message from device ", message);
+});
+
+function sendMessage() {
+  var payload = {"op":"getTemp","ts":123123123};
+  c2dPublisher.sendMessage("AMP-device", payload);
+}
+
+var interval = setInterval(sendMessage, 30000);
+console.log('Press any key to exit');
+process.stdin.setRawMode(true);
+process.stdin.resume();
+process.stdin.on('data', function() {
+  clearInterval(interval);
+  process.exit(0);
+});

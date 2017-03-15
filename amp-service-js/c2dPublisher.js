@@ -6,7 +6,7 @@ var Message = require('azure-iot-common').Message;
 const uuidV4 = require('uuid/v4');
 var azure = require("azure-sb");
 var serviceBusService = azure.createServiceBusService(serviceConfig.serviceBusEndpoint);
-
+var eventEmitter = null;
 
 var connectionString = serviceConfig.c2dConnectionString;
 
@@ -24,8 +24,8 @@ function printResultFor(op) {
 
 function receiveFeedback(err, receiver) {
   receiver.on('message', function(msg) {
-    console.log('Feedback message:')
-    console.log(msg.getData().toString('utf-8'));
+    //console.log('Feedback message:')
+    //console.log(msg.getData().toString('utf-8'));
     msg.getData().forEach(function(message) {
       if (message.description === 'Success') {
         delete pendingFeedback[message.deviceId];
@@ -50,11 +50,12 @@ function checkForMessages(sbService, queueName, callback) {
   });
 }
 
-function processMessage(sbService, err, lockedMsg) {
+function processMessage(sbService, eventEmitter, err, lockedMsg) {
   if (err) {
     console.log('Error on Rx: ', err);
   } else {
-    console.log('Message from device ', lockedMsg.body);
+    //console.log('Message from device ', lockedMsg.body);
+    eventEmitter.emit("message-from-device", lockedMsg.body);
     var deviceId = lockedMsg.customProperties["iothub-connection-device-id"];
     delete pendingFeedback[deviceId];
     sbService.deleteMessage(lockedMsg, function(err2) {
@@ -66,8 +67,6 @@ function processMessage(sbService, err, lockedMsg) {
     });
   }
 }
-
-
 
 
 function sendShoulderTap(message, deviceId, serviceClient) {
@@ -101,9 +100,9 @@ function sendShoulderTap(message, deviceId, serviceClient) {
   }
 }
 
-var c2dPublisher = (function() {
+module.exports = function(eventEmitter) {
   var serviceClient = Client.fromConnectionString(connectionString);
-  setInterval(checkForMessages.bind(null, serviceBusService, "aerpi-5-servicebus-eventqueue", processMessage.bind(null, serviceBusService)), 5000);
+  setInterval(checkForMessages.bind(null, serviceBusService, "aerpi-5-servicebus-eventqueue", processMessage.bind(null, serviceBusService, eventEmitter)), 5000);
   return {
     sendMessage: function(targetDevice, payload) {
       serviceClient.open(function(err) {
@@ -122,6 +121,4 @@ var c2dPublisher = (function() {
       });
     }
   }
-})();
-
-module.exports = c2dPublisher;
+}
