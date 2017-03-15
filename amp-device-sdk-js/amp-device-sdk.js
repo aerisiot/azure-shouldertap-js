@@ -111,6 +111,13 @@ var aersdk = (function() {
           if (callback) {
             callback(message.toString());
           }
+          var payload = {
+            "op": "ack",
+            "ts": Date.now()
+          };
+          _mqttClient.publish(topics.ack, JSON.stringify(payload), function(){
+            console.log("Published ack");
+          });
         });
       });
 

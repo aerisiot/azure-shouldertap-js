@@ -1,0 +1,22 @@
+{
+  "name": "amp-service-js",
+  "version": "1.0.0",
+  "description": "",
+  "main": "service.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://nsaeris@bitbucket.org/aeriscom/team5.git"
+  },
+  "author": "naren",
+  "license": "ISC",
+  "homepage": "https://bitbucket.org/aeriscom/team5#readme",
+  "dependencies": {
+    "uuid": "3.0.1",
+    "azure-iothub": "^1.1.7",
+    "axios": "0.15.3",
+    "azure": "0.7.5"
+  }
+}
