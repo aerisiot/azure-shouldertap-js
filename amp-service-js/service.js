@@ -18,20 +18,18 @@ On every socket connection
 
 
 */
+require( "console-stamp" )( console, { pattern : "yyyy/mm/dd HH:MM:ss.l" } );
+console.log("Service to get temperature started...");
+var c2dPublisher = require('./c2dPublisher.js');
+var publisher = new c2dPublisher();
 
-
-var EventEmitter = require('events').EventEmitter;
-var emitter = new EventEmitter();
-
-var c2dPublisher = require('./c2dPublisher.js')(emitter);
-
-emitter.on("message-from-device", function(message){
+publisher.on("message-from-device", function(message){
   console.log("Message from device ", message);
 });
 
 function sendMessage() {
   var payload = {"op":"getTemp","ts":123123123};
-  c2dPublisher.sendMessage("AMP-device", payload);
+  publisher.sendMessage("AMP-device", payload);
 }
 
 var interval = setInterval(sendMessage, 30000);

@@ -1,4 +1,5 @@
 'use strict';
+var util = require('util');
 var serviceConfig = require("./serviceConfig.json");
 var caasClient = require("./aerCaaSClient");
 var Client = require('azure-iothub').Client;
@@ -6,7 +7,7 @@ var Message = require('azure-iot-common').Message;
 const uuidV4 = require('uuid/v4');
 var azure = require("azure-sb");
 var serviceBusService = azure.createServiceBusService(serviceConfig.serviceBusEndpoint);
-var eventEmitter = null;
+var EventEmitter = require('events').EventEmitter;
 
 var connectionString = serviceConfig.c2dConnectionString;
 
@@ -22,7 +23,7 @@ function printResultFor(op) {
   };
 }
 
-function receiveFeedback(err, receiver) {
+c2dPublisher.prototype._receiveFeedback = function(err, receiver) {
   receiver.on('message', function(msg) {
     //console.log('Feedback message:')
     //console.log(msg.getData().toString('utf-8'));
@@ -34,31 +35,47 @@ function receiveFeedback(err, receiver) {
   });
 }
 
-function checkForMessages(sbService, queueName, callback) {
-  sbService.receiveQueueMessage(queueName, {
-    isPeekLock: true
-  }, function(err, lockedMessage) {
-    if (err) {
-      if (err == 'No messages to receive') {
-        //console.log('No messages');
-      } else {
-        callback(err);
-      }
-    } else {
-      callback(null, lockedMessage);
-    }
-  });
+
+function c2dPublisher() {
+  var self = this;
+  EventEmitter.call(this);
+
+  this.serviceClient = Client.fromConnectionString(connectionString);
+  //console.log("c2dPublisher ", this);
+  setInterval(this._checkForMessages.bind(this, "aerpi-5-servicebus-eventqueue", this._processMessage.bind(this)), 5000);
 }
 
-function processMessage(sbService, eventEmitter, err, lockedMsg) {
+util.inherits(c2dPublisher, EventEmitter);
+
+c2dPublisher.prototype.sendMessage = function (targetDevice, payload) {
+  var self = this;
+  self.serviceClient.open(function(err) {
+    if (err) {
+      console.error('Could not connect: ' + err.message);
+    } else {
+      self.serviceClient.getFeedbackReceiver(self._receiveFeedback);
+      var message = new Message(JSON.stringify(payload));
+      message.ack = 'full';
+      message.messageId = uuidV4();
+      console.log('Sending message: ' + message.getData());
+      self.serviceClient.send(targetDevice, message, printResultFor('send'));
+      pendingFeedback[targetDevice] = Date.now();
+      var timeout = setTimeout(self._sendShoulderTap, 10000, message, targetDevice, self.serviceClient);
+    }
+  });
+};
+
+c2dPublisher.prototype._processMessage = function(err, lockedMsg) {
+  //console.log("ProcessMessage ", this);
+  var self = this;
   if (err) {
     console.log('Error on Rx: ', err);
   } else {
     //console.log('Message from device ', lockedMsg.body);
-    eventEmitter.emit("message-from-device", lockedMsg.body);
+    this.emit("message-from-device", lockedMsg.body);
     var deviceId = lockedMsg.customProperties["iothub-connection-device-id"];
     delete pendingFeedback[deviceId];
-    sbService.deleteMessage(lockedMsg, function(err2) {
+    serviceBusService.deleteMessage(lockedMsg, function(err2) {
       if (err2) {
         //console.log('Failed to delete message: ', err2);
       } else {
@@ -66,10 +83,30 @@ function processMessage(sbService, eventEmitter, err, lockedMsg) {
       }
     });
   }
-}
+};
+
+c2dPublisher.prototype._checkForMessages = function(queueName, handler) {
+  //console.log("_checkForMessages ", this);
+  var self = this;
+  serviceBusService.receiveQueueMessage(queueName, {
+    isPeekLock: true
+  }, function(err, lockedMessage) {
+    if (err) {
+      if (err == 'No messages to receive') {
+        //console.log('No messages');
+      } else {
+        handler(err);
+      }
+    } else {
+      handler(null, lockedMessage);
+    }
+  });
+};
 
 
-function sendShoulderTap(message, deviceId, serviceClient) {
+
+c2dPublisher.prototype._sendShoulderTap = function (message, deviceId, serviceClient) {
+  var self = this;
   var messageId = message.messageId;
   var sentTime = pendingFeedback[deviceId];
   if (sentTime) {
@@ -98,27 +135,7 @@ function sendShoulderTap(message, deviceId, serviceClient) {
   } else {
     console.log("Not sending shouldertap as device is in session");
   }
-}
+};
 
-module.exports = function(eventEmitter) {
-  var serviceClient = Client.fromConnectionString(connectionString);
-  setInterval(checkForMessages.bind(null, serviceBusService, "aerpi-5-servicebus-eventqueue", processMessage.bind(null, serviceBusService, eventEmitter)), 5000);
-  return {
-    sendMessage: function(targetDevice, payload) {
-      serviceClient.open(function(err) {
-        if (err) {
-          console.error('Could not connect: ' + err.message);
-        } else {
-          serviceClient.getFeedbackReceiver(receiveFeedback);
-          var message = new Message(JSON.stringify(payload));
-          message.ack = 'full';
-          message.messageId = uuidV4();
-          console.log('Sending message: ' + message.getData());
-          serviceClient.send(targetDevice, message, printResultFor('send'));
-          pendingFeedback[targetDevice] = Date.now();
-          var timeout = setTimeout(sendShoulderTap, 10000, message, targetDevice, serviceClient);
-        }
-      });
-    }
-  }
-}
+
+module.exports = c2dPublisher;
