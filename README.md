@@ -3,6 +3,8 @@ This NodeJs project demonstrate how to send shoulder tap SMS using AerFrame serv
 
 The project uses Azure IoT Hub to demonstrate E2E solution, and include both server side and client side code for reference.
 
+Please refer to [Wiki](https://github.com/aerisiot/azure-shouldertap-js/wiki) for full details.
+
 # How to run the device app
 See [Test E2E solution](https://github.com/aerisiot/azure-shouldertap-js/wiki/Test-E2E-solution)
 
